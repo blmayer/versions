@@ -9,6 +9,7 @@ Available commands:
   init         initialize a vs repo
   status       show repo status
   add <glob>   add files to staging area
+  del <glob>   remove files from staging area
   commit       commit files in staging area
   reset        discard changes and restore to the last commit
   get          get commits from the server
@@ -56,8 +57,20 @@ add() {
 	do
 		rf="$(realpath $f --relative-to $vsdir/..)"
 		debug "adding $rf"
-		[ -d "$rf" ] && add "$rf"
+		[ -d "$rf" ] && add "$rf/*"
 		grep -q "$rf" "$vsdir/stage" || echo "$rf" >> "$vsdir/stage"
+	done
+}
+
+del() {
+	[ -f "$vsdir/stage" ] || return 0
+	for f in $*
+	do
+		rf="$(realpath $f --relative-to $vsdir/..)"
+		debug "removing $rf"
+		[ -d "$rf" ] && del "$rf/*"
+		grep -v "$rf" "$vsdir/stage" >> "$vsdir/stage.temp"
+		mv "$vsdir/stage.temp" "$vsdir/stage"
 	done
 }
 
