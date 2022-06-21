@@ -47,14 +47,15 @@ status() {
 		diff -q "$f" "$rf" > /dev/null || echo "Changed file: $rf"
 	done
 
-	# TODO: add new files
+	# TODO: improve output
+	diff --brief --recursive "$vsdir/cur/" "$rootdir" --exclude ".vs"
 }
 
 add() {
 	[ -f "$vsdir/stage" ] || touch "$vsdir/stage"
 	for f in $*
 	do
-		rf="$(realpath $f --relative-to $vsdir/..)"
+		rf="$(realpath $f --relative-to $rootdir)"
 		debug "adding $rf"
 		[ -d "$rf" ] && add "$rf"
 		grep -q "$rf" "$vsdir/stage" || echo "$rf" >> "$vsdir/stage"
@@ -84,10 +85,11 @@ commit() {
 }
 
 reset() {
-	cp -R "$vsdir/cur/*" $vsdir/..
+	cp -R "$vsdir/cur/*" $rootdir
 }
 
 vsdir="$(findvs)"
+rootdir="${vsdir%/.vs}"
 case "$1" in
 	"add") shift && add "$*" ;;
 	"init") init ;;
