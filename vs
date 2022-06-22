@@ -6,7 +6,7 @@ Usage: vs [COMMAND]... FILES
 A very simple version control
 
 Available commands:
-  init         initialize a vs repo
+  init <path>  initialize a vs repo using path as remote and name
   status       show repo status
   add <glob>   add files to staging area
   del <glob>   remove files from staging area
@@ -16,8 +16,16 @@ Available commands:
   send         send commits to the remote server
   help         show this help
 
+Notes:
+  - the remote address must be on your ssh config.
+
 Most configuration can be done by directly editing the config file in
 the .vs folder, in the root of your initialized repo.
+
+Examples:
+To initialize a repo named projectx on mydomain.com use:
+  vs init mydomain.com/projectx
+
 EOF
 }
 
@@ -27,15 +35,19 @@ debug() {
 
 findvs() {
 	debug "findvs in $(pwd)"
-	[ -d .vs ] && echo "$(realpath .vs)" && return 0
+	[ -d .vs ] && vsdir="$(realpath .vs)" && return 0
+	[ $PWD = "/" ] && echo "not in a repo" && exit 0
 	cd ..
 	findvs 
 }
 
 init() {
+	debug "init with $1"
 	[ -d .vs ] && echo "vs already present" && exit -1
+	[ -z "$1" ] && echo "missing remote repo path" && exit -2
 	mkdir -p .vs/commits
 	mkdir .vs/cur
+	echo "remote=${1%/*}:${1#*/}" > .vs/config
 }
 
 status() {
@@ -101,14 +113,16 @@ reset() {
 	cp -R "$vsdir/cur/*" $rootdir
 }
 
-vsdir="$(findvs)"
+[ $1 = "init" ] && init "$2" && exit 0
+
+findvs
 rootdir="${vsdir%/.vs}"
+debug "vsdir=$vsdir rootdir=$rootdir"
 case "$1" in
 	"add") shift && add "$*" ;;
-	"init") init ;;
 	"commit") commit ;;
-	"help") usage ;; 
 	"reset") reset ;; 
 	"") status ;; 
+	"help"|*) usage ;; 
 esac
 
