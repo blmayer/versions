@@ -53,8 +53,11 @@ init() {
 status() {
 	[ -f "$vsdir/stage" ] && echo "Staged files:" | cat - "$vsdir/stage" 
 
-	for f in "$(find $vsdir/cur/* -type f)"
+	for f in "$(find $vsdir/cur/ -type f)"
 	do
+		[ -z $f ] && continue
+
+		# TODO: try with $rootdir, looks better
 		rf="$(realpath $f --relative-to $vsdir/cur)"
 		debug "checking $rf"
 		diff -q "$f" "$rf" > /dev/null || echo "Changed file: $rf"
@@ -113,11 +116,12 @@ reset() {
 	cp -R "$vsdir/cur/*" $rootdir
 }
 
-[ $1 = "init" ] && init "$2" && exit 0
+[ ! -z $1 ] && [ $1 = "init" ] && init "$2" && exit 0
 
 findvs
+source "$vsdir/config"
 rootdir="${vsdir%/.vs}"
-debug "vsdir=$vsdir rootdir=$rootdir"
+debug "vsdir=$vsdir rootdir=$rootdir remote=$remote"
 case "$1" in
 	"add") shift && add "$*" ;;
 	"commit") commit ;;
