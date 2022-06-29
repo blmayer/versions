@@ -56,12 +56,16 @@ init() {
 }
 
 status() {
+	read -r head < "$vsdir/head"
+	echo "on commit $head"
+
+	rrhead="$(ssh $remote "cat $repo/head")"
+	[ -z "$rrhead" ] || echo "remote is on commit $rrhead"
+
 	[ -f "$vsdir/stage" ] && echo "Staged files:" | cat - "$vsdir/stage" 
 
-	for f in "$(find $vsdir/cur/ -type f)"
+	for f in $(find $vsdir/cur/ -type f)
 	do
-		[ -z $f ] && continue
-
 		# TODO: try with $rootdir, looks better
 		rf="$(realpath $f --relative-to $vsdir/cur)"
 		debug "checking $rf"
@@ -106,6 +110,9 @@ del() {
 commit() {
 	[ ! -z "$*" ] && add "$*"
 
+	echo "commiting:"
+	cat "$vsdir/stage"
+
 	read -r head < "$vsdir/head"
 	curcommit="$((head + 1))"
 	mkdir -p "$vsdir/commits/$curcommit/"
@@ -118,8 +125,7 @@ commit() {
 
 	while read -r s
 	do
-		rs="$(realpath $s --relative-to $vsdir)"
-		diff -uNd "$vsdir/cur/$rs" "$s" >> "$vsdir/commits/$curcommit/diff"
+		diff -uNd "$vsdir/cur/$s" "$s" >> "$vsdir/commits/$curcommit/diff"
 	done < "$vsdir/stage"
 	
 	rm "$vsdir/stage"
@@ -133,13 +139,13 @@ reset() {
 
 get() {
 	[ "$1" = "-f" ] && force="1" && debug "forcing"
-	for f in "$(find $vsdir/cur/ -type f)"
+	for f in $(find $vsdir/cur/ -type f)
 	do
-		[ -z $f ] && continue
+		[ -z "$f" ] && continue
 
 		# TODO: try with $rootdir, looks better
 		rf="$(realpath $f --relative-to $vsdir/cur)"
-		debug "checking $rf"
+		debug "checking $rf with $f"
 		
 		diff -q "$f" "$rf" > /dev/null
 		if [ $? ] && [ ! $force ]
@@ -162,6 +168,7 @@ get() {
 		scp "$remote:$repo/$c/diff" "$vsdir/remote/diff"
 		patch -ud "$rootdir/" < "$vsdir/remote/diff"
 		rm "$vsdir/remote/diff"
+		echo "$c" > "$vsdir/rhead"
 	done
 }
 
