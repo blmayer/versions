@@ -51,8 +51,10 @@ init() {
 		echo "remote=${1%:*}"
 		echo "repo=${1#*:}"
 	} >> .vs/config
+	echo 0 > .vs/rhead
 
-	touch .vs/rhead
+	echo "initializing remote"
+	ssh "$remote" "mkdir -p $repo && echo 0 > $repo/head"
 }
 
 status() {
@@ -127,7 +129,7 @@ commit() {
 	do
 		diff -uNd "$vsdir/cur/$s" "$s" >> "$vsdir/commits/$curcommit/diff"
 	done < "$vsdir/stage"
-	
+
 	rm "$vsdir/stage"
 	patch -ud "$vsdir/cur/" < "$vsdir/commits/$curcommit/diff"
 	echo "$curcommit" > "$vsdir/head"
@@ -176,21 +178,14 @@ send() {
 	read -r rhead < "$vsdir/rhead"
 	rrhead="$(ssh -q $remote "cat $repo/head")"
 	debug "rhead=$rhead rrhead=$rrhead"
+	[ $rrhead -gt $rhead ] && echo "remote has more commits, get first" && exit 6
 
-	if [ -z "$rrhead" ]
-	then
-		echo "head not found in remote, initializing remote"
-	       	rrhead="0"
-		ssh "$remote" "mkdir -p $repo && echo 0 > $repo/head"
-	else
-		[ $rrhead -gt $rhead ] && echo "remote has more commits, get first" && exit 6
-		echo "checking commit $rhead"
-		scp "$remote:$repo/$rhead/diff" "$vsdir/remote/diff"
-		rsum="$(md5sum $_ | cut -d ' ' -f 1)"
-		csum="$(md5sum $vsdir/commits/$rhead/diff | cut -d ' ' -f 1)"
-		rm "$vsdir/remote/diff"
-		[ ! "$rsum" = "$csum" ] && echo "commit $rhead is different on remote" && exit 7
-	fi
+	echo "checking commit $rhead"
+	scp "$remote:$repo/$rhead/diff" "$vsdir/remote/diff"
+	rsum="$(md5sum $_ | cut -d ' ' -f 1)"
+	csum="$(md5sum $vsdir/commits/$rhead/diff | cut -d ' ' -f 1)"
+	rm "$vsdir/remote/diff"
+	[ ! "$rsum" = "$csum" ] && echo "commit $rhead is different on remote" && exit 7
 
 	read -r head < "$vsdir/head"
 	for c in $(seq $((rhead+1)) $head)
