@@ -104,6 +104,8 @@ del() {
 }
 
 commit() {
+	[ ! -z "$*" ] && add "$*"
+
 	read -r head < "$vsdir/head"
 	curcommit="$((head + 1))"
 	mkdir -p "$vsdir/commits/$curcommit/"
@@ -117,13 +119,11 @@ commit() {
 	while read -r s
 	do
 		rs="$(realpath $s --relative-to $vsdir)"
-		echo "$s"
 		diff -uNd "$vsdir/cur/$rs" "$s" >> "$vsdir/commits/$curcommit/diff"
-		[ -d "$(dirname $vsdir/cur/$s)" ] || mkdir "$(dirname $vsdir/cur/$s)"
-		# TODO: use patch
-		cp "$s" "$vsdir/cur/$s"
 	done < "$vsdir/stage"
+	
 	rm "$vsdir/stage"
+	patch -ud "$vsdir/cur/" < "$vsdir/commits/$curcommit/diff"
 	echo "$curcommit" > "$vsdir/head"
 }
 
@@ -144,7 +144,7 @@ get() {
 		diff -q "$f" "$rf" > /dev/null
 		if [ $? ] && [ ! $force ]
 		then	
-			echo "you have changes, it can be desastrous, run with -f to force"
+			echo "you have changes, it can be disastrous, run with -f to force"
 			exit 3
 		fi
 	done
@@ -211,7 +211,7 @@ case "$1" in
 	"add") shift && add "$*" ;;
 	"del") shift && del "$*" ;;
 	"get") shift && get "$*" ;;
-	"commit") commit ;;
+	"commit") shift && commit "$*" ;;
 	"reset") reset ;; 
 	"send") send ;; 
 	"help"|*) usage ;; 
