@@ -54,7 +54,7 @@ init() {
 	echo 0 > .vs/rhead
 
 	echo "initializing remote"
-	ssh "$remote" "mkdir -p $repo && echo 0 > $repo/head"
+	ssh "$remote" "mkdir -p $repo/files && echo 0 > $repo/head"
 }
 
 status() {
@@ -136,7 +136,11 @@ commit() {
 }
 
 reset() {
-	cp -R "$vsdir/cur/*" $rootdir
+	[ -z "$*" ] && reset ./*
+	for f in $*
+	do
+		cp -R "$vsdir/cur/$f" "$rootdir"
+	done
 }
 
 get() {
@@ -192,7 +196,7 @@ send() {
 	do
 		echo "sending commit $c"
 		scp -r "$vsdir/commits/$c" "$remote:$repo/"
-		# TODO: apply commits on remote?
+		ssh "$remote" "patch -ud "$repo/files/" < "$repo/$c/diff""
 
 		echo "$c" > "$vsdir/rhead"
 		ssh "$remote" "echo $c > $repo/head"
@@ -214,7 +218,7 @@ case "$1" in
 	"del") shift && del "$*" ;;
 	"get") shift && get "$*" ;;
 	"commit") shift && commit "$*" ;;
-	"reset") reset ;; 
+	"reset") shift && reset "$*" ;; 
 	"send") send ;; 
 	"help"|*) usage ;; 
 esac
