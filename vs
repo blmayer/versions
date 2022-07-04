@@ -56,7 +56,7 @@ init() {
 	source .vs/config
 
 	echo "initializing remote"
-	ssh "$remote" "mkdir -p $repo/files && echo 0 > $repo/head"
+	ssh "$remote" "mkdir -p $repo/files $repo/commits && echo 0 > $repo/head"
 }
 
 status() {
@@ -127,13 +127,16 @@ commit() {
 	echo "$msg" > "$vsdir/commits/$curcommit/message"
 	debug "message: $msg"
 
+
+	cd "$rootdir" 
 	while read -r s
 	do
-		diff -uNd "$vsdir/cur/$s" "$s" >> "$vsdir/commits/$curcommit/diff"
+		debug "commiting $s"
+		diff -uNd ".vs/cur/$s" "$s" >> "$vsdir/commits/$curcommit/diff"
 	done < "$vsdir/stage"
 
 	rm "$vsdir/stage"
-	patch -ud "$vsdir/cur/" < "$vsdir/commits/$curcommit/diff"
+	patch -ud ".vs/cur/" -p0 < "$vsdir/commits/$curcommit/diff"
 	echo "$curcommit" > "$vsdir/head"
 }
 
@@ -173,7 +176,7 @@ get() {
 	for c in $(seq $((rhead+1)) $rrhead)
 	do
 		echo "getting commit $c"
-		scp "$remote:$repo/$c/diff" "$vsdir/remote/diff"
+		scp "$remote:$repo/commits/$c/diff" "$vsdir/remote/diff"
 		patch -ud "$rootdir/" < "$vsdir/remote/diff"
 		rm "$vsdir/remote/diff"
 		echo "$c" > "$vsdir/rhead"
@@ -186,28 +189,32 @@ send() {
 	debug "rhead=$rhead rrhead=$rrhead"
 	[ $rrhead -gt $rhead ] && echo "remote has more commits, get first" && exit 6
 
-	echo "checking commit $rhead"
-	scp "$remote:$repo/$rhead/diff" "$vsdir/remote/diff"
-	rsum="$(md5sum $_ | cut -d ' ' -f 1)"
-	csum="$(md5sum $vsdir/commits/$rhead/diff | cut -d ' ' -f 1)"
-	rm "$vsdir/remote/diff"
+	if [ $rhead -gt 0 ]
+	then
+		echo "checking commit $rhead"
+		scp "$remote:$repo/commits/$rhead/diff" "$vsdir/remote/diff"
+		rsum="$(md5sum $_ | cut -d ' ' -f 1)"
+		csum="$(md5sum $vsdir/commits/$rhead/diff | cut -d ' ' -f 1)"
+		rm "$vsdir/remote/diff"
+	fi
+
 	[ ! "$rsum" = "$csum" ] && echo "commit $rhead is different on remote" && exit 7
 
 	read -r head < "$vsdir/head"
 	for c in $(seq $((rhead+1)) $head)
 	do
 		echo "sending commit $c"
-		scp -r "$vsdir/commits/$c" "$remote:$repo/"
-		ssh "$remote" "patch -ud "$repo/files/" < "$repo/$c/diff""
+		scp -r "$vsdir/commits/$c" "$remote:$repo/commits/"
+		ssh "$remote" "patch -ud "$repo/files/" -p0 < "$repo/commits/$c/diff""
 
 		echo "$c" > "$vsdir/rhead"
 		ssh "$remote" "echo $c > $repo/head"
 	done
 
-	for h in $(ssh "$remote" "ls -1 $repo/files/.hooks/* 2> /dev/null")
+	for h in $(ssh "$remote" "cd "$repo/files/" && ls -1 .hooks/* 2> /dev/null")
 	do
 		echo "running hook $h"
-		ssh "$remote" "sh $repo/files/.hooks/$h"
+		ssh "$remote" "cd "$repo" && sh files/$h"
 	done
 }
 
