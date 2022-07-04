@@ -6,16 +6,16 @@ Usage: vs [COMMAND]... FILES
 A very simple version control
 
 Available commands:
-  init <path>  initialize a vs repo using path as remote and name
-  status       show repo status
-  add <glob>   add files to staging area
-  del <glob>   remove files from staging area
-  diff <glob>  show changes for glob
-  commit       commit files in staging area
-  reset        discard changes and restore to the last commit
-  get          get commits from the server
-  send         send commits to the remote server
-  help         show this help
+  init <path>   initialize a vs repo using path as remote and name
+  status        show repo status
+  add <glob>    add files to staging area
+  del <glob>    remove files from staging area
+  diff <glob>   show changes for glob
+  commit [glob] add files to staging area and commit
+  reset         discard changes and restore to the last commit
+  get           get commits from the server
+  send          send commits to the remote server
+  help          show this help
 
 Notes:
   - the remote address must be on your ssh config.
@@ -51,7 +51,9 @@ init() {
 		echo "remote=${1%:*}"
 		echo "repo=${1#*:}"
 	} >> .vs/config
+	echo 0 > .vs/head
 	echo 0 > .vs/rhead
+	source .vs/config
 
 	echo "initializing remote"
 	ssh "$remote" "mkdir -p $repo/files && echo 0 > $repo/head"
@@ -200,6 +202,12 @@ send() {
 
 		echo "$c" > "$vsdir/rhead"
 		ssh "$remote" "echo $c > $repo/head"
+	done
+
+	for h in $(ssh "$remote" "ls -1 $repo/files/.hooks/* 2> /dev/null")
+	do
+		echo "running hook $h"
+		ssh "$remote" "sh $repo/files/.hooks/$h"
 	done
 }
 
